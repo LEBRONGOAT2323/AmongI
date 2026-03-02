@@ -1,24 +1,32 @@
-
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mini Among Us Clone</title>
-    <style>
-        body { margin:0; background:#1e1e1e; }
-        canvas {
-            background:#2c3e50;
-            display:block;
-            margin:auto;
-            border-radius:10px;
-        }
-    </style>
+  <title>Mini Among Us</title>
+  <style>
+    body { margin:0; background:#111; overflow:hidden; }
+    canvas { display:block; margin:auto; background:#1e1e1e; }
+    #taskUI {
+      position:absolute;
+      top:10px;
+      left:50%;
+      transform:translateX(-50%);
+      background:#222;
+      padding:10px 20px;
+      border-radius:8px;
+      color:white;
+      display:none;
+    }
+  </style>
 </head>
 <body>
-<canvas id="game" width="800" height="600"></canvas>
+
+<div id="taskUI">Press E to complete task</div>
+<canvas id="game" width="1000" height="600"></canvas>
 
 <script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const taskUI = document.getElementById("taskUI");
 
 const socket = new WebSocket(
   location.protocol === "https:"
@@ -28,57 +36,134 @@ const socket = new WebSocket(
 
 let myId = null;
 const players = {};
-const speed = 2;
 const keys = {};
+const speed = 3;
 
-document.addEventListener('keydown', (e) => keys[e.key] = true);
-document.addEventListener('keyup', (e) => keys[e.key] = false);
+const walls = [
+  {x:200,y:0,w:20,h:400},
+  {x:600,y:200,w:20,h:400}
+];
 
-socket.onmessage = (msg) => {
+const tasks = [
+  {x:150,y:150,done:false},
+  {x:850,y:450,done:false}
+];
+
+document.addEventListener("keydown", e=>{
+  keys[e.key]=true;
+  if(e.key==="e") attemptTask();
+});
+document.addEventListener("keyup", e=>keys[e.key]=false);
+
+socket.onmessage = msg=>{
   const data = JSON.parse(msg.data);
 
-  if (data.type === "init") {
+  if(data.type==="init"){
     myId = data.id;
-    Object.assign(players, data.players);
+    Object.assign(players,data.players);
     draw();
   }
 
-  if (data.type === "update") {
-    players[data.id] = data.position;
+  if(data.type==="update"){
+    players[data.id]=data.position;
   }
 
-  if (data.type === "leave") {
+  if(data.type==="leave"){
     delete players[data.id];
   }
 };
 
-function sendPosition(x, y) {
+function sendPosition(x,y){
   socket.send(JSON.stringify({
-    type: "position",
-    position: { x, y }
+    type:"position",
+    position:{x,y}
   }));
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function collides(x,y){
+  for(let wall of walls){
+    if(x>wall.x && x<wall.x+wall.w &&
+       y>wall.y && y<wall.y+wall.h){
+       return true;
+    }
+  }
+  return false;
+}
 
-  if (myId && players[myId]) {
+function attemptTask(){
+  const p = players[myId];
+  for(let task of tasks){
+    const dist = Math.hypot(p.x-task.x,p.y-task.y);
+    if(dist<40 && !task.done){
+      task.done=true;
+      taskUI.style.display="none";
+    }
+  }
+}
+
+function drawCrewmate(x,y,color,name){
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.arc(x,y,18,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#fff";
+  ctx.fillRect(x-10,y-20,20,15);
+
+  ctx.fillStyle="white";
+  ctx.font="12px Arial";
+  ctx.textAlign="center";
+  ctx.fillText(name,x,y-30);
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Draw walls
+  ctx.fillStyle="#555";
+  walls.forEach(w=>ctx.fillRect(w.x,w.y,w.w,w.h));
+
+  // Draw tasks
+  tasks.forEach(task=>{
+    ctx.fillStyle=task.done?"green":"yellow";
+    ctx.beginPath();
+    ctx.arc(task.x,task.y,10,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  if(myId && players[myId]){
     let p = players[myId];
+    let newX = p.x;
+    let newY = p.y;
 
-    if (keys["ArrowUp"]) p.y -= speed;
-    if (keys["ArrowDown"]) p.y += speed;
-    if (keys["ArrowLeft"]) p.x -= speed;
-    if (keys["ArrowRight"]) p.x += speed;
+    if(keys["ArrowUp"]) newY-=speed;
+    if(keys["ArrowDown"]) newY+=speed;
+    if(keys["ArrowLeft"]) newX-=speed;
+    if(keys["ArrowRight"]) newX+=speed;
 
-    sendPosition(p.x, p.y);
+    if(!collides(newX,newY)){
+      p.x=newX;
+      p.y=newY;
+      sendPosition(p.x,p.y);
+    }
+
+    // Task UI trigger
+    let nearTask=false;
+    for(let task of tasks){
+      if(Math.hypot(p.x-task.x,p.y-task.y)<40 && !task.done){
+        nearTask=true;
+      }
+    }
+    taskUI.style.display=nearTask?"block":"none";
   }
 
-  for (let id in players) {
-    const { x, y } = players[id];
-    ctx.fillStyle = id == myId ? "red" : "blue";
-    ctx.beginPath();
-    ctx.arc(x, y, 12, 0, Math.PI * 2);
-    ctx.fill();
+  for(let id in players){
+    drawCrewmate(
+      players[id].x,
+      players[id].y,
+      id==myId?"red":"blue",
+      id
+    );
   }
 
   requestAnimationFrame(draw);
