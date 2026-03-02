@@ -1,0 +1,84 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mini Among Us Clone</title>
+    <style>
+        body { margin:0; background:#1e1e1e; }
+        canvas {
+            background:#2c3e50;
+            display:block;
+            margin:auto;
+            border-radius:10px;
+        }
+    </style>
+</head>
+<body>
+<canvas id="game" width="800" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const socket = new WebSocket(`ws://${location.host}`);
+
+let myId = null;
+const players = {};
+const speed = 2;
+const keys = {};
+
+document.addEventListener('keydown', (e) => keys[e.key] = true);
+document.addEventListener('keyup', (e) => keys[e.key] = false);
+
+socket.onmessage = (msg) => {
+  const data = JSON.parse(msg.data);
+
+  if (data.type === "init") {
+    myId = data.id;
+    Object.assign(players, data.players);
+    draw();
+  }
+
+  if (data.type === "update") {
+    players[data.id] = data.position;
+  }
+
+  if (data.type === "leave") {
+    delete players[data.id];
+  }
+};
+
+function sendPosition(x, y) {
+  socket.send(JSON.stringify({
+    type: "position",
+    position: { x, y }
+  }));
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (myId && players[myId]) {
+    let p = players[myId];
+
+    if (keys["ArrowUp"]) p.y -= speed;
+    if (keys["ArrowDown"]) p.y += speed;
+    if (keys["ArrowLeft"]) p.x -= speed;
+    if (keys["ArrowRight"]) p.x += speed;
+
+    sendPosition(p.x, p.y);
+  }
+
+  for (let id in players) {
+    const { x, y } = players[id];
+    ctx.fillStyle = id == myId ? "red" : "blue";
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  requestAnimationFrame(draw);
+}
+</script>
+</body>
+</html>
