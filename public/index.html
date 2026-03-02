@@ -20,7 +20,11 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-const socket = new WebSocket(`ws://${location.host}`);
+const socket = new WebSocket(
+  location.protocol === "https:"
+    ? `wss://${location.host}`
+    : `ws://${location.host}`
+);
 
 let myId = null;
 const players = {};
