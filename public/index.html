@@ -278,6 +278,35 @@ for (let i = 0; i < canvas.height; i += 40) {
     }));
   }
 }
+
+let killCooldown = false;
+
+function attemptKill() {
+  const me = players[myId];
+  if (!me || me.role !== "impostor" || !me.alive || killCooldown) return;
+
+  let closestId = null;
+  let closestDist = Infinity;
+
+  for (let id in players) {
+    if (id === myId) continue;
+    if (!players[id].alive) continue;
+
+    const dist = Math.hypot(me.x - players[id].x, me.y - players[id].y);
+    if (dist < 50 && dist < closestDist) {
+      closestDist = dist;
+      closestId = id;
+    }
+  }
+
+  if (closestId) {
+    socket.send(JSON.stringify({ type: "kill", targetId: closestId }));
+    killCooldown = true;
+    setTimeout(() => killCooldown = false, 3000); 
+  }
+}
+
+  draw();
   
 </script>
 </body>
