@@ -234,18 +234,17 @@ for (let i = 0; i < canvas.height; i += 40) {
     taskUI.style.display=nearTask?"block":"none";
   }
 
+  for (let id in players) {
   let color = id == myId ? "#c51111" : "#1177cc";
+  if (!players[id].alive) color = "#555555";
 
-if (!players[id].alive) {
-  color = "#555555"; 
+  drawCrewmate(
+    players[id].x,
+    players[id].y,
+    color,
+    id
+  );
 }
-
-drawCrewmate(
-  players[id].x,
-  players[id].y,
-  color,
-  id
-);
 
   requestAnimationFrame(draw);
 }
