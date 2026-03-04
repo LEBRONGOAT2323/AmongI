@@ -49,26 +49,39 @@ const tasks = [
   {x:850,y:450,done:false}
 ];
 
-document.addEventListener("keydown", e=>{
-  keys[e.key]=true;
-  if(e.key==="e") attemptTask();
+document.addEventListener("keydown", e => {
+  keys[e.key] = true;
+
+  if (e.key === "e") attemptTask();
+  if (e.key === "q") attemptKill();
 });
 document.addEventListener("keyup", e=>keys[e.key]=false);
 
-socket.onmessage = msg=>{
+socket.onmessage = msg => {
   const data = JSON.parse(msg.data);
 
-  if(data.type==="init"){
+  if (data.type === "init") {
     myId = data.id;
-    Object.assign(players,data.players);
-    draw();
+    Object.assign(players, data.players);
   }
 
-  if(data.type==="update"){
-    players[data.id]=data.position;
+  if (data.type === "rolesAssigned") {
+    for (let id in data.players) {
+      players[id].role = data.players[id].role;
+    }
   }
 
-  if(data.type==="leave"){
+  if (data.type === "update") {
+    players[data.id] = data.position;
+  }
+
+  if (data.type === "killed") {
+    if (players[data.targetId]) {
+      players[data.targetId].alive = false;
+    }
+  }
+
+  if (data.type === "leave") {
     delete players[data.id];
   }
 };
@@ -157,6 +170,17 @@ function draw(){
   ctx.fillStyle = "#0b0f1a";
 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  if (myId && players[myId]?.role) {
+  ctx.fillStyle = players[myId].role === "impostor" ? "red" : "white";
+  ctx.font = "bold 20px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText(
+    players[myId].role.toUpperCase(),
+    20,
+    30
+  );
+}
+
 // subtle grid
 ctx.strokeStyle = "rgba(255,255,255,0.05)";
 for (let i = 0; i < canvas.width; i += 40) {
@@ -184,7 +208,7 @@ for (let i = 0; i < canvas.height; i += 40) {
     ctx.fill();
   });
 
-  if(myId && players[myId]){
+  if (myId && players[myId] && players[myId].alive) {
     let p = players[myId];
     let newX = p.x;
     let newY = p.y;
@@ -210,17 +234,52 @@ for (let i = 0; i < canvas.height; i += 40) {
     taskUI.style.display=nearTask?"block":"none";
   }
 
-  for(let id in players){
-    drawCrewmate(
-      players[id].x,
-      players[id].y,
-      id == myId ? "#c51111" : "#1177cc",
-      id
-    );
-  }
+  let color = id == myId ? "#c51111" : "#1177cc";
+
+if (!players[id].alive) {
+  color = "#555555"; 
+}
+
+drawCrewmate(
+  players[id].x,
+  players[id].y,
+  color,
+  id
+);
 
   requestAnimationFrame(draw);
 }
+
+  function attemptKill() {
+  const me = players[myId];
+  if (!me || me.role !== "impostor" || !me.alive) return;
+
+  let closestId = null;
+  let closestDist = Infinity;
+
+  for (let id in players) {
+    if (id === myId) continue;
+    if (!players[id].alive) continue;
+
+    const dist = Math.hypot(
+      me.x - players[id].x,
+      me.y - players[id].y
+    );
+
+    if (dist < 50 && dist < closestDist) {
+      closestDist = dist;
+      closestId = id;
+    }
+  }
+
+  if (closestId) {
+    socket.send(JSON.stringify({
+      type: "kill",
+      targetId: closestId
+    }));
+  }
+}
+  
 </script>
 </body>
 </html>
